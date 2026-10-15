@@ -279,7 +279,7 @@ class TestTagDashboard(FrappeTestCase):
         return {row["tag"]: row["Tickets"] for row in charts["top_tags"]["data"]}
 
 
-class TestChannelChart(IntegrationTestCase):
+class TestChannelChart(FrappeTestCase):
     def setUp(self) -> None:
         self.enterContext(stub_chat_channel())
         self.manager = make_agent_manager("channel-chart-manager")

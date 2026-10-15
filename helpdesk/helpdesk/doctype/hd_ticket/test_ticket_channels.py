@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
 import frappe
-from frappe.tests import IntegrationTestCase
-from frappe.tests.utils import change_settings
+from frappe.tests.utils import FrappeTestCase, change_settings
 
 from helpdesk.helpdesk.doctype.hd_ticket.api import new
 from helpdesk.helpdesk.doctype.hd_ticket.hd_ticket import HDTicket
@@ -25,7 +24,7 @@ def make_chat_ticket(**values):
     )
 
 
-class TestTicketChannel(IntegrationTestCase):
+class TestTicketChannel(FrappeTestCase):
     def setUp(self):
         self.enterContext(stub_chat_channel())
 
@@ -50,7 +49,7 @@ class TestTicketChannel(IntegrationTestCase):
                 }
             )
         self.assertEqual(
-            frappe.db.get_value("HD Ticket", ticket["name"], "channel"), "Portal"
+            frappe.db.get_value("HD Ticket", ticket.name, "channel"), "Portal"
         )
 
     def test_channel_cannot_be_changed(self):
@@ -95,7 +94,7 @@ class TestTicketChannel(IntegrationTestCase):
         ticket.save()
 
 
-class TestChatReply(IntegrationTestCase):
+class TestChatReply(FrappeTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -147,7 +146,7 @@ class TestChatReply(IntegrationTestCase):
                 self.ticket.reply_via_agent(message="Lost")
 
 
-class TestRemovedChannel(IntegrationTestCase):
+class TestRemovedChannel(FrappeTestCase):
     """The app that registered the channel has been uninstalled."""
 
     def test_new_tickets_refuse_the_channel(self):

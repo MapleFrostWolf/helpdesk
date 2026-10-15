@@ -63,3 +63,4 @@ helpdesk.patches.relabel_comment_search_index
 helpdesk.patches.mark_old_assignment_notifications_read
 helpdesk.patches.sync_customer_manager_roles
 helpdesk.patches.add_ticket_channels
+helpdesk.patches.grant_channel_permlevel

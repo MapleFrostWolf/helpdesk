@@ -498,7 +498,7 @@
  "icon": "fa fa-issue",
  "idx": 61,
  "links": [],
- "modified": "2026-10-15 12:00:00.000000",
+ "modified": "2026-10-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Ticket",
@@ -560,6 +560,24 @@
    "report": 1,
    "role": "HD Customer Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "permlevel": 8,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 8,
+   "read": 1,
+   "role": "Agent",
+   "write": 1
+  },
+  {
+   "permlevel": 8,
+   "read": 1,
+   "role": "Agent Manager",
    "write": 1
   }
  ],

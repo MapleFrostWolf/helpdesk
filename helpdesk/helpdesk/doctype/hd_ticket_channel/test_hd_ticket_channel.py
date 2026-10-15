@@ -4,7 +4,7 @@
 from unittest.mock import patch
 
 import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests.utils import FrappeTestCase
 
 from helpdesk.channels import get_channel, sync_channels
 from helpdesk.test_utils import (
@@ -24,7 +24,7 @@ def channel_record(name: str) -> dict:
     )
 
 
-class TestHDTicketChannel(IntegrationTestCase):
+class TestHDTicketChannel(FrappeTestCase):
     def test_builtin_channels_use_the_email_workflow(self):
         sync_channels()
         for name in ("Email", "Portal"):
