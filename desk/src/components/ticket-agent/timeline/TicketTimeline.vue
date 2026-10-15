@@ -52,6 +52,7 @@
                 <template #icon><ReplyIcon class="text-ink-gray-7" /></template>
               </Button>
               <Button
+                v-if="!isChatTicket"
                 variant="ghost"
                 :tooltip="__('Reply All')"
                 @click="replyAll(activity)"
@@ -140,6 +141,7 @@ import {
 } from "@/composables/useTicket";
 import { useAuthStore } from "@/stores/auth";
 import { globalStore } from "@/stores/globalStore";
+import { useTicketChannelStore } from "@/stores/ticketChannel";
 import { useUserStore } from "@/stores/user";
 import { __ } from "@/translation";
 import { TicketSymbol } from "@/types";
@@ -186,6 +188,8 @@ const authStore = useAuthStore();
 const { getUser } = useUserStore();
 const { $socket } = globalStore();
 const ticket = inject(TicketSymbol)!;
+const { isChat } = useTicketChannelStore();
+const isChatTicket = computed(() => isChat(ticket.value?.doc?.channel));
 
 const splitCommunication = ref("");
 const timelineRef =
@@ -333,8 +337,15 @@ function withTagNamesBold(activity: LogActivity): LogActivity {
 
 function withEmailFixups(activity: EmailActivity): EmailActivity {
   const data = { ...activity.data };
-  // portal tickets have no real delivery pipeline; hide the badge
-  if (ticket.value?.doc?.via_customer_portal) delete data.deliveryStatus;
+  // portal and chat tickets have no real delivery pipeline; hide the badge
+  if (ticket.value?.doc?.via_customer_portal || isChatTicket.value)
+    delete data.deliveryStatus;
+  // chat messages have no envelope
+  if (isChatTicket.value) {
+    delete data.to;
+    delete data.cc;
+    delete data.bcc;
+  }
   if (isPlainText(data.content)) {
     data.content = data.content.replace(/\n/g, "<br>");
   }

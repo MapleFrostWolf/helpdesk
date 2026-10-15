@@ -12,9 +12,16 @@
   >
     <template #default>
       <div @keydown.capture="handleKeydown">
+        <!-- a chat reply has no envelope; say where it goes instead -->
+        <div
+          v-if="chatChannel"
+          class="mx-6 md:mx-5 flex items-center gap-2 border-y py-2.5 text-p-xs text-ink-gray-4"
+        >
+          {{ __("Reply via {0}", [__(chatChannel)]) }}
+        </div>
         <!-- Email headers -->
         <div
-          v-if="hasMultipleSenders"
+          v-else-if="hasMultipleSenders"
           class="mx-6 md:mx-5 flex items-center gap-2 border-t py-2.5 h-12.5"
         >
           <span class="text-p-xs text-ink-gray-4">{{ __("From") }}:</span>
@@ -27,7 +34,10 @@
             :options="from"
           />
         </div>
-        <div class="mx-6 md:mx-5 flex items-center gap-2 border-y py-2.5">
+        <div
+          v-if="!chatChannel"
+          class="mx-6 md:mx-5 flex items-center gap-2 border-y py-2.5"
+        >
           <span class="text-p-xs text-ink-gray-4">{{ __("To") }}:</span>
           <EmailMultiSelect
             v-model="toEmailsClone"
@@ -63,7 +73,7 @@
           </div>
         </div>
         <div
-          v-if="showCC || cc"
+          v-if="!chatChannel && (showCC || cc)"
           class="mx-5 flex items-center gap-2 py-2.5"
           :class="cc || showCC ? 'border-b' : ''"
         >
@@ -81,7 +91,7 @@
           />
         </div>
         <div
-          v-if="showBCC || bcc"
+          v-if="!chatChannel && (showBCC || bcc)"
           class="mx-5 flex items-center gap-2 py-2.5"
           :class="bcc || showBCC ? 'border-b' : ''"
         >
@@ -295,6 +305,11 @@ const props = defineProps({
   doctype: {
     type: String,
     default: "HD Ticket",
+  },
+  // the ticket's channel when it is a chat channel: no recipients or signature
+  chatChannel: {
+    type: String,
+    default: null,
   },
   toEmails: {
     type: Array,
@@ -528,6 +543,7 @@ function submitMail() {
   // The keyboard shortcut reaches here without passing the disabled button
   if (isUploading.value || sendMail.loading) return false;
   if (
+    !props.chatChannel &&
     !toEmailsClone.value.length &&
     !ccEmailsClone.value.length &&
     !bccEmailsClone.value.length
@@ -543,7 +559,16 @@ function submitMail() {
     (quotedContentRef.value
       ? `<p class="reply-to-content"></p><blockquote>${quotedContentRef.value.innerHTML}</blockquote>`
       : "");
-  const sender = selectedFromEmail.value?.email_id ?? authStore.userId;
+  const sender = props.chatChannel
+    ? authStore.userId
+    : selectedFromEmail.value?.email_id ?? authStore.userId;
+  const recipients = props.chatChannel
+    ? { to: [], cc: [], bcc: [] }
+    : {
+        to: toEmailsClone.value,
+        cc: ccEmailsClone.value ?? [],
+        bcc: bccEmailsClone.value ?? [],
+      };
   const ownEmail = getUser(authStore.userId).email;
 
   pendingRow?.drop();
@@ -559,9 +584,9 @@ function submitMail() {
     data: {
       name: "",
       sender,
-      to: toEmailsClone.value.join(", "),
-      cc: ccEmailsClone.value?.join(", "),
-      bcc: bccEmailsClone.value?.join(", "),
+      to: recipients.to.join(", "),
+      cc: recipients.cc.join(", "),
+      bcc: recipients.bcc.join(", "),
       content: message,
       attachments: attachments.value.map((a) => ({
         file_url: a.file_url,
@@ -583,10 +608,10 @@ function submitMail() {
     method: "reply_via_agent",
     args: {
       attachments: attachments.value.map((x) => x.name),
-      from_email: selectedFromEmail.value,
-      to: toEmailsClone.value.join(","),
-      cc: ccEmailsClone.value?.join(","),
-      bcc: bccEmailsClone.value?.join(","),
+      from_email: props.chatChannel ? null : selectedFromEmail.value,
+      to: recipients.to.join(","),
+      cc: recipients.cc.join(","),
+      bcc: recipients.bcc.join(","),
       message,
     },
   };
@@ -748,15 +773,26 @@ watch(quotedContent, (newVal, oldVal) => {
 });
 
 watch(
-  () => userResource.data,
-  (data: { email_signature?: string } | null) => {
-    if (!data?.email_signature) return;
-    emailSignature.value = `<br>${data.email_signature}`;
+  [() => userResource.data, () => props.chatChannel],
+  ([data, chatChannel]: [
+    { email_signature?: string } | null,
+    string | null
+  ]) => {
+    // chat replies are messages, not emails: no signature
+    const signature =
+      data?.email_signature && !chatChannel
+        ? `<br>${data.email_signature}`
+        : null;
+    if (signature === emailSignature.value) return;
+    // an untouched draft follows the signature in and out
+    const untouched =
+      isContentEmpty(newEmail.value) || isOnlySignature(newEmail.value);
+    emailSignature.value = signature;
     if (isOnlySignature(cachedEmail.value)) {
       cachedEmail.value = null;
     }
-    if (isContentEmpty(newEmail.value) && !quotedContent.value) {
-      newEmail.value = emailSignature.value;
+    if (untouched && !quotedContent.value) {
+      newEmail.value = signature;
       focusEditorAtStart();
     }
   },

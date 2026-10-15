@@ -28,10 +28,9 @@
         >
           #{{ ticket.doc.name }}
         </p>
-        <div class="flex items-center">
-          <span>{{
-            ticket.doc.via_customer_portal ? __("via Portal") : __("via Email")
-          }}</span>
+        <div v-if="ticket.doc.channel" class="flex items-center gap-1">
+          <Icon v-if="channel?.icon" :icon="channel.icon" class="size-3" />
+          <span>{{ __("via {0}", [__(ticket.doc.channel)]) }}</span>
         </div>
       </div>
     </div>
@@ -51,8 +50,10 @@
 </template>
 
 <script setup lang="ts">
+import Icon from "@/components/Icon.vue";
 import { useShortcut } from "@/composables/shortcuts";
 import { useTelephonyStore } from "@/stores/telephony";
+import { useTicketChannelStore } from "@/stores/ticketChannel";
 import { useUserStore } from "@/stores/user";
 import { TicketContactSymbol, TicketSymbol } from "@/types";
 import { copyToClipboard, openContact } from "@/utils";
@@ -68,6 +69,8 @@ const { isCallingEnabled } = storeToRefs(telephonyStore);
 const showPhoneModal = ref(false);
 
 const ticket = inject(TicketSymbol)!;
+const { getChannel } = useTicketChannelStore();
+const channel = computed(() => getChannel(ticket.value.doc.channel));
 
 const contact = inject(TicketContactSymbol)!;
 const contactImage = computed(() => {
