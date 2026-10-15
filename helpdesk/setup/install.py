@@ -4,6 +4,7 @@ import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission, update_permission_property
 
+from helpdesk.channels import sync_channels
 from helpdesk.consts import DEFAULT_ARTICLE_CATEGORY, DEFAULT_SLA
 from helpdesk.setup.comments import setup_comments_and_notifications
 from helpdesk.setup.default_views import add_default_views
@@ -16,6 +17,7 @@ from .welcome_ticket import create_welcome_ticket
 
 
 def after_install():
+    sync_channels()
     create_custom_fields(get_custom_fields())
     add_default_status()
     add_default_agent_status()
