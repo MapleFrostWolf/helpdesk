@@ -48,6 +48,7 @@
             "
             placeholder="Hi John, we are looking into this issue."
             :ticketId="ticketId"
+            :chat-channel="chatChannel"
             :to-emails="toEmails"
             :cc-emails="ccEmails"
             :bcc-emails="bccEmails"
@@ -123,15 +124,23 @@ import { useDevice } from "@/composables";
 import { useScreenSize } from "@/composables/screen";
 import { useShortcut } from "@/composables/shortcuts";
 import { showCommentBox, showEmailBox } from "@/pages/ticket/modalStates";
+import { useTicketChannelStore } from "@/stores/ticketChannel";
+import { TicketSymbol } from "@/types";
 import { onClickOutside } from "@vueuse/core";
-import { ref, watch } from "vue";
+import { computed, inject, ref, watch } from "vue";
 
 const emit = defineEmits(["update"]);
 const content = defineModel("content");
 const { isMac } = useDevice();
 const { isMobileView } = useScreenSize();
 let doc = defineModel();
-// let doc = inject(TicketSymbol)?.value.doc
+const ticket = inject(TicketSymbol, null);
+const { isChat } = useTicketChannelStore();
+// replies on a chat ticket go out through its channel, not by email
+const chatChannel = computed(() => {
+  const channel = ticket?.value?.doc?.channel;
+  return isChat(channel) ? channel : null;
+});
 const emailEditorRef = ref(null);
 const commentTextEditorRef = ref(null);
 const emailBoxRef = ref(null);
