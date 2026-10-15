@@ -1,0 +1,95 @@
+{
+ "actions": [],
+ "autoname": "Prompt",
+ "creation": "2026-10-15 12:00:00.000000",
+ "description": "How tickets reach Helpdesk. Apps register channels with the helpdesk_channels hook; these records follow the hooks.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "reply_mode",
+  "icon",
+  "column_break_chnl",
+  "app",
+  "handler",
+  "registered"
+ ],
+ "fields": [
+  {
+   "description": "Email: Helpdesk emails replies to the customer. Chat: the app that registered the channel delivers them.",
+   "fieldname": "reply_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Reply Mode",
+   "options": "Email\nChat",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "description": "Lucide icon name",
+   "fieldname": "icon",
+   "fieldtype": "Data",
+   "label": "Icon",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_chnl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "app",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "App",
+   "read_only": 1
+  },
+  {
+   "fieldname": "handler",
+   "fieldtype": "Data",
+   "label": "Handler",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Off when no installed app registers this channel. Its tickets can't be replied to.",
+   "fieldname": "registered",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Registered",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2026-10-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Helpdesk",
+ "name": "HD Ticket Channel",
+ "naming_rule": "Set by user",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Agent Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Agent",
+   "select": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

@@ -23,9 +23,23 @@ get_site_info = "helpdesk.activation.get_site_info"
 
 after_install = "helpdesk.setup.install.after_install"
 after_migrate = [
+    "helpdesk.channels.sync_channels",
     "helpdesk.search.build_index_in_background",
     "helpdesk.search.download_corpus",
 ]
+# other apps' channels come and go with the apps
+after_app_install = "helpdesk.channels.sync_channels"
+after_app_uninstall = "helpdesk.channels.sync_channels_after_uninstall"
+
+
+# Ticket Channels
+# ---------------
+# Apps add their own the same way; see helpdesk/channels.py
+
+helpdesk_channels = {
+    "Email": "helpdesk.channels.EmailChannel",
+    "Portal": "helpdesk.channels.PortalChannel",
+}
 
 
 # Full Text Search

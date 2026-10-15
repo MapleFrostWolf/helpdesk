@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -7,12 +8,13 @@ import frappe
 from frappe.cache_manager import clear_doctype_map
 from frappe.core.doctype.communication.test_communication import create_email_account
 from frappe.permissions import rights
-from frappe.tests.classes.context_managers import freeze_time
+from frappe.tests.classes.context_managers import freeze_time, patch_hooks
 from frappe.utils import add_to_date, getdate, now_datetime
 
 from helpdesk.api.banners import BANNERS, dismiss_banner
 from helpdesk.api.dashboard import HelpdeskDashboard
 from helpdesk.api.settings.field_dependency import create_update_field_dependency
+from helpdesk.channels import TicketChannel, sync_channels
 from helpdesk.consts import DEFAULT_SLA, DEFAULT_TICKET_TEMPLATE
 from helpdesk.integrations.erpnext.utils import create_customer_field
 from helpdesk.utils import get_customers, is_frappe_version
@@ -1022,3 +1024,37 @@ def get_number_cards(agent: str, from_date: str, to_date: str) -> dict[str, dict
     filters = frappe._dict(from_date=from_date, to_date=to_date, agent=agent)
     cards = HelpdeskDashboard(filters).get_number_card_data()
     return {card["title"]: card for card in cards}
+
+
+STUB_CHAT_CHANNEL = "Stub Chat"
+
+
+class StubChatChannel(TicketChannel):
+    """A chat channel for tests; patch `send_reply` to see the replies it is handed."""
+
+    icon = "message-circle"
+    reply_mode = "Chat"
+
+    def send_reply(self, ticket, communication) -> None:
+        pass
+
+
+@contextmanager
+def channel_hooks(channels: dict[str, str]):
+    """Register ticket channels as an installed app's `helpdesk_channels` hook would.
+
+    The records are synced on entry, and follow the real hooks again on exit.
+    """
+    hooks = {
+        **frappe.get_hooks("helpdesk_channels", {}),
+        **{name: [path] for name, path in channels.items()},
+    }
+    with patch_hooks({"helpdesk_channels": hooks}):
+        sync_channels()
+        yield
+    sync_channels()
+
+
+def stub_chat_channel():
+    """`channel_hooks` registering `StubChatChannel` as `STUB_CHAT_CHANNEL`."""
+    return channel_hooks({STUB_CHAT_CHANNEL: "helpdesk.test_utils.StubChatChannel"})
