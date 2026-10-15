@@ -7,6 +7,7 @@ from frappe.utils import add_days, getdate, now_datetime, nowdate
 
 from helpdesk.api.dashboard import HelpdeskDashboard, get_dashboard_data
 from helpdesk.test_utils import (
+    STUB_CHAT_CHANNEL,
     create_agent,
     create_contact,
     get_number_cards,
@@ -16,7 +17,9 @@ from helpdesk.test_utils import (
     make_tagged_ticket,
     make_team,
     make_ticket,
+    stub_chat_channel,
     unique_email,
+    unique_name,
 )
 
 AGENT = "dashboard-sla-agent@example.com"
@@ -274,3 +277,30 @@ class TestTagDashboard(FrappeTestCase):
     @staticmethod
     def top_tag_counts(charts: dict[str, dict]) -> dict[str, int]:
         return {row["tag"]: row["Tickets"] for row in charts["top_tags"]["data"]}
+
+
+class TestChannelChart(IntegrationTestCase):
+    def setUp(self) -> None:
+        self.enterContext(stub_chat_channel())
+        self.manager = make_agent_manager("channel-chart-manager")
+        self.team = make_team(unique_name("Channel Team")).name
+
+    def test_tickets_are_counted_by_channel(self) -> None:
+        with self.freeze_time("2031-08-01 10:00:00"):
+            for channel in ("Email", "Email", "Portal", STUB_CHAT_CHANNEL):
+                make_ticket(
+                    agent_group=self.team,
+                    channel=channel,
+                    raised_by=unique_email("channel-chart"),
+                )
+
+        filters = {
+            "from_date": "2031-08-01",
+            "to_date": "2031-08-01",
+            "team": self.team,
+        }
+        with self.set_user(self.manager):
+            charts = get_dashboard_data("master", filters)
+        chart = next(c for c in charts if c["key"] == "tickets_by_channel")
+        counts = {row["channel"]: row["count"] for row in chart["data"]}
+        self.assertEqual(counts, {"Email": 2, "Portal": 1, STUB_CHAT_CHANNEL: 1})
