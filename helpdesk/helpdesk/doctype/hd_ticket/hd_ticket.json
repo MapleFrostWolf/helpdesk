@@ -60,6 +60,7 @@
   "email_account",
   "column_break_16",
   "via_customer_portal",
+  "channel",
   "split_and_merge_section",
   "is_merged",
   "merged_with",
@@ -377,6 +378,15 @@
    "permlevel": 8
   },
   {
+   "fieldname": "channel",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Channel",
+   "options": "HD Ticket Channel",
+   "permlevel": 8,
+   "set_only_once": 1
+  },
+  {
    "fieldname": "customer_feedback_section",
    "fieldtype": "Section Break"
   },
@@ -512,7 +522,7 @@
  "icon": "fa fa-issue",
  "idx": 61,
  "links": [],
- "modified": "2026-09-30 12:00:00.000000",
+ "modified": "2026-10-15 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Ticket",

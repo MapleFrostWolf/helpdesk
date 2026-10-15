@@ -18,6 +18,7 @@ from pypika.functions import Count
 from pypika.queries import Query
 from pypika.terms import Criterion
 
+from helpdesk.channels import get_channel
 from helpdesk.consts import SERVER_COMPUTED_FIELDS
 from helpdesk.helpdesk.doctype.hd_settings.helpers import (
     get_default_email_content,
@@ -84,6 +85,7 @@ class HDTicket(Document, CustomerEditController):
 
     def before_validate(self):
         self.check_update_perms()
+        self.set_channel()
         self.set_ticket_type()
         self.set_raised_by()
         self.set_priority()
@@ -98,6 +100,7 @@ class HDTicket(Document, CustomerEditController):
         self.set_customer()
 
     def validate(self):
+        self.validate_channel()
         self.validate_feedback()
 
     def before_save(self):
@@ -129,6 +132,7 @@ class HDTicket(Document, CustomerEditController):
         if (
             self.is_new()
             or self.via_customer_portal
+            or self.channel_reply_mode() == "Chat"
             or self.feedback_rating
             or not self.has_value_changed("status")
             or not self.key
@@ -191,6 +195,7 @@ class HDTicket(Document, CustomerEditController):
         )
         if (
             not self.via_customer_portal
+            and self.channel_reply_mode() == "Email"
             and not frappe.flags.initial_sync
             and send_ack_email
         ):
@@ -201,7 +206,7 @@ class HDTicket(Document, CustomerEditController):
             return
 
         capture_event("ticket_created")
-        if not self.via_customer_portal:
+        if self.channel == "Email":
             capture_event("ticket_created_via_email")
         if self.via_customer_portal and not is_agent():
             capture_event("ticket_created_via_customer")
@@ -264,6 +269,32 @@ class HDTicket(Document, CustomerEditController):
             return
         self.ticket_type = (
             frappe.db.get_single_value("HD Settings", "default_ticket_type") or ""
+        )
+
+    def set_channel(self):
+        """Tickets that don't say how they came are portal or email tickets."""
+        if not self.is_new() or self.channel:
+            return
+        self.channel = "Portal" if self.via_customer_portal else "Email"
+
+    def validate_channel(self):
+        # nothing could deliver replies on a ticket of a channel no app provides
+        if not self.is_new():
+            return
+        if not frappe.db.get_value("HD Ticket Channel", self.channel, "registered"):
+            frappe.throw(
+                _("Ticket channel {0} isn't available: no app provides it").format(
+                    self.channel
+                )
+            )
+
+    def channel_reply_mode(self) -> str:
+        """How agents' replies reach the customer: "Email" or "Chat" (see helpdesk/channels.py)."""
+        if not self.channel:
+            return "Email"
+        return (
+            frappe.get_cached_value("HD Ticket Channel", self.channel, "reply_mode")
+            or "Email"
         )
 
     def set_raised_by(self):
@@ -518,6 +549,8 @@ class HDTicket(Document, CustomerEditController):
         return None
 
     def skip_email_workflow(self):
+        if self.channel_reply_mode() == "Chat":
+            return True
         skip: str = frappe.get_value("HD Settings", None, "skip_email_workflow") or "0"
 
         return bool(int(skip))
@@ -674,6 +707,8 @@ class HDTicket(Document, CustomerEditController):
             frappe.throw(
                 _("You are not permitted to reply as an agent"), frappe.PermissionError
             )
+        if self.channel_reply_mode() == "Chat":
+            return self.reply_via_channel(message, attachments)
         skip_email_workflow = self.skip_email_workflow()
         medium = "" if skip_email_workflow else "Email"
         subject = f"Re: {self.subject}"
@@ -733,13 +768,7 @@ class HDTicket(Document, CustomerEditController):
         communication.insert(ignore_permissions=True)
         capture_event("agent_replied")
 
-        _attachments = []
-
-        for attachment in attachments:
-            file_url = frappe.db.get_value("File", attachment, "file_url")
-            self.attach_file_with_doc("Communication", communication.name, file_url)
-            self.attach_file_with_doc("HD Ticket", self.name, file_url)
-            _attachments.append({"file_url": file_url})
+        _attachments = self.attach_reply_files(communication.name, attachments)
 
         if not should_send_email:
             return communication.name
@@ -799,6 +828,40 @@ class HDTicket(Document, CustomerEditController):
             communication.db_set("message_id", message_id)
 
         return communication.name
+
+    def reply_via_channel(self, message: str, attachments: list[str]) -> str:
+        """Save an agent's reply on a chat ticket, then hand it to the ticket's channel."""
+        channel = get_channel(self.channel)
+        communication = frappe.get_doc(
+            {
+                "doctype": "Communication",
+                "communication_medium": "Chat",
+                "communication_type": "Communication",
+                "content": message,
+                "reference_doctype": "HD Ticket",
+                "reference_name": self.name,
+                "sender": frappe.session.user,
+                "sender_full_name": frappe.utils.get_fullname(),
+                "sent_or_received": "Sent",
+                "status": "Linked",
+                "subject": f"Re: {self.subject}",
+            }
+        )
+        communication.insert(ignore_permissions=True)
+        capture_event("agent_replied")
+        self.attach_reply_files(communication.name, attachments)
+        channel.send_reply(self, communication)
+        return communication.name
+
+    def attach_reply_files(self, communication: str, attachments: list[str]):
+        """Attach a reply's uploads to the reply and to the ticket; returns their urls."""
+        file_urls = []
+        for attachment in attachments:
+            file_url = frappe.db.get_value("File", attachment, "file_url")
+            self.attach_file_with_doc("Communication", communication, file_url)
+            self.attach_file_with_doc("HD Ticket", self.name, file_url)
+            file_urls.append({"file_url": file_url})
+        return file_urls
 
     @frappe.whitelist()
     # flake8: noqa
