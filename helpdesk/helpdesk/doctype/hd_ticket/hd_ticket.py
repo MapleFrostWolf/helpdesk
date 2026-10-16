@@ -847,6 +847,8 @@ class HDTicket(Document, CustomerEditController):
                 "subject": f"Re: {self.subject}",
             }
         )
+        # a chat message carries no email signature
+        communication.flags.skip_add_signature = True
         communication.insert(ignore_permissions=True)
         capture_event("agent_replied")
         self.attach_reply_files(communication.name, attachments)

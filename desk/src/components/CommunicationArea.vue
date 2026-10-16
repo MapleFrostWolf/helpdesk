@@ -49,6 +49,7 @@
             placeholder="Hi John, we are looking into this issue."
             :ticketId="ticketId"
             :chat-channel="chatChannel"
+            :channel-known="channelKnown"
             :to-emails="toEmails"
             :cc-emails="ccEmails"
             :bcc-emails="bccEmails"
@@ -135,12 +136,16 @@ const { isMac } = useDevice();
 const { isMobileView } = useScreenSize();
 let doc = defineModel();
 const ticket = inject(TicketSymbol, null);
-const { isChat } = useTicketChannelStore();
+const { getChannel } = useTicketChannelStore();
 // replies on a chat ticket go out through its channel, not by email
 const chatChannel = computed(() => {
   const channel = ticket?.value?.doc?.channel;
-  return isChat(channel) ? channel : null;
+  return getChannel(channel)?.reply_mode === "Chat" ? channel : null;
 });
+// until the ticket and its channel load, it may be either
+const channelKnown = computed(
+  () => !ticket || Boolean(getChannel(ticket.value?.doc?.channel))
+);
 const emailEditorRef = ref(null);
 const commentTextEditorRef = ref(null);
 const emailBoxRef = ref(null);
