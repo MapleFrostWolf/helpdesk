@@ -264,7 +264,8 @@ const showDeleteDialog = ref(false);
 
 const dropdownActions = computed(() => {
   const baseActions = [];
-  if (!contact.doc?.user && !invitation.value?.name) {
+  // an invitation goes by email
+  if (!contact.doc?.user && !invitation.value?.name && contact.doc?.email_id) {
     baseActions.push({
       label: __("Invite as User"),
       icon: "lucide-user-plus",
