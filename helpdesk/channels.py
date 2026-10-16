@@ -20,6 +20,9 @@ class TicketChannel:
 
     `Email` channels use Helpdesk's email workflow. `Chat` channels get each agent
     reply through `send_reply`, and Helpdesk sends their customers no email.
+
+    The other methods are called at points in a ticket's life where a channel may
+    need a say: splitting and merging. Their defaults are Helpdesk's own behavior.
     """
 
     icon: str = "message-circle"
@@ -36,6 +39,29 @@ class TicketChannel:
         """
         raise NotImplementedError(
             f"{type(self).__name__} must implement send_reply to deliver replies"
+        )
+
+    def before_split(self, source, ticket) -> None:
+        """`ticket`, a copy of `source`, is about to be inserted as split from it.
+
+        Change it, or raise to refuse the split. By default it's kept as copied.
+        """
+
+    def notify_split(self, source, ticket) -> None:
+        """Tell `source`'s customer that the conversation goes on in `ticket`."""
+        url = frappe.utils.get_url(f"/helpdesk/tickets/{ticket.name}")
+        source.reply_via_agent(
+            message=_(
+                "This ticket has been split to a new ticket. Please follow up on ticket <a href={0}>#{1}</a>."
+            ).format(url, ticket.name)
+        )
+
+    def notify_merge(self, source, target) -> None:
+        """Tell `source`'s customer it was merged into `target`. `source` is closed by now."""
+        source.reply_via_agent(
+            message=_(
+                "This ticket (#{0}) has been merged with ticket <a href = '/helpdesk/tickets/{1}'>#{1}</a>."
+            ).format(source.name, target.name)
         )
 
 
