@@ -1,9 +1,11 @@
 """Side data for the framework ActivityTimeline: its payload carries neither
-comment reactions nor comment attachments, and calls are helpdesk-only rows."""
+comment reactions nor comment attachments, calls are helpdesk-only rows, and it
+knows message authors only as Frappe users."""
 
 import frappe
 from frappe import _
 
+from helpdesk.channels import TicketChannel, find_channel
 from helpdesk.helpdesk.doctype.hd_ticket.api import get_call_logs
 from helpdesk.utils import is_agent
 
@@ -45,6 +47,17 @@ def get_ticket_calls(ticket: str) -> list[dict]:
     """Calls merged into the feed as custom rows; loaded on open, no realtime."""
     ensure_agent_can_read(ticket)
     return get_call_logs(ticket)
+
+
+@frappe.whitelist()
+def get_message_authors(ticket: str) -> dict[str, dict]:
+    """Names and pictures for message senders that aren't Frappe users, by sender
+    address; the ticket's channel decides (`TicketChannel.message_authors`)."""
+    ensure_agent_can_read(ticket)
+    doc = frappe.get_doc("HD Ticket", ticket)
+    # a channel whose app is gone still has a contact to show
+    channel = find_channel(doc.channel) or TicketChannel(doc.channel)
+    return channel.message_authors(doc)
 
 
 def ensure_agent_can_read(ticket: str) -> None:

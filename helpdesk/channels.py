@@ -22,7 +22,8 @@ class TicketChannel:
     reply through `send_reply`, and Helpdesk sends their customers no email.
 
     The other methods are called at points in a ticket's life where a channel may
-    need a say: splitting and merging. Their defaults are Helpdesk's own behavior.
+    need a say: splitting, merging, and showing who wrote its messages. Their
+    defaults are Helpdesk's own behavior.
     """
 
     icon: str = "message-circle"
@@ -64,6 +65,23 @@ class TicketChannel:
             ).format(source.name, target.name)
         )
 
+    def message_authors(self, ticket) -> dict[str, dict]:
+        """Who the ticket's messages are from, for senders that aren't Frappe users.
+
+        Keyed by sender address, each with `fullname` and `image`; the timeline fills
+        in what Frappe doesn't know. By default, the ticket's contact.
+        """
+        if not ticket.contact or not ticket.raised_by:
+            return {}
+        contact = frappe.db.get_value(
+            "Contact", ticket.contact, ["full_name", "image"], as_dict=True
+        )
+        if not contact:
+            return {}
+        return {
+            ticket.raised_by: {"fullname": contact.full_name, "image": contact.image}
+        }
+
 
 class EmailChannel(TicketChannel):
     icon = "mail"
@@ -82,15 +100,21 @@ def registered_channels() -> dict[str, str]:
     return {name: paths[-1] for name, paths in hooks.items()}
 
 
-def get_channel(name: str) -> TicketChannel:
-    """The handler of a registered channel."""
+def find_channel(name: str | None) -> TicketChannel | None:
+    """The handler of a registered channel, or None."""
     path = registered_channels().get(name)
-    if not path:
+    return frappe.get_attr(path)(name) if path else None
+
+
+def get_channel(name: str) -> TicketChannel:
+    """The handler of a registered channel; refused when no installed app provides it."""
+    channel = find_channel(name)
+    if not channel:
         frappe.throw(
             _("No installed app provides the ticket channel {0}").format(name),
             title=_("Channel not available"),
         )
-    return frappe.get_attr(path)(name)
+    return channel
 
 
 def sync_channels(app: str | None = None) -> None:

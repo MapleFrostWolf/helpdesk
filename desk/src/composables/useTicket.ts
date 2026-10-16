@@ -22,6 +22,8 @@ interface MapValue {
   // shared by every timeline tab instance, fetched once per ticket
   calls: Resource<Record<string, any>[]>;
   commentExtras: Resource<TicketCommentExtras>;
+  // senders that aren't Frappe users, by address; see TicketChannel.message_authors
+  messageAuthors: Resource<Record<string, MessageAuthor>>;
   // lent by the mounted timeline; see registerTicketFeed
   reloadFeed?: () => void;
 }
@@ -30,6 +32,11 @@ export interface TicketCommentExtras {
   comments: Record<string, CommentExtras>;
   // oldest first, so a pin's position is its "N:" in the pinned bar
   pinned_comments: string[];
+}
+
+export interface MessageAuthor {
+  fullname?: string;
+  image?: string;
 }
 
 export interface PinnedComment {
@@ -95,6 +102,11 @@ export const useTicket = (ticketId: string): MapValue => {
         params: { ticket: ticketId },
         auto: true,
       }),
+      messageAuthors: createResource({
+        url: "helpdesk.api.timeline.get_message_authors",
+        params: { ticket: ticketId },
+        auto: true,
+      }),
     };
   }
 
@@ -106,6 +118,9 @@ export function reloadTicket(ticketId: string) {
   if (!ticketData) return;
   ticketData.ticket.reload();
   ticketData.assignees.reload();
+  // the contact's picture may have changed with the ticket
+  ticketData.contact.reload();
+  ticketData.messageAuthors.reload();
 }
 
 // The timeline owns its feed through useActivityTimeline, so anything outside it

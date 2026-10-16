@@ -4,6 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.tests.utils import change_settings
 
+from helpdesk.api.timeline import get_message_authors
 from helpdesk.helpdesk.doctype.hd_ticket.api import merge_ticket, new, split_ticket
 from helpdesk.helpdesk.doctype.hd_ticket.hd_ticket import HDTicket
 from helpdesk.test_utils import (
@@ -221,6 +222,42 @@ class TestChannelLifecycle(IntegrationTestCase):
         )
         self.assertEqual(source.status, "Closed")
         self.assertTrue(frappe.db.get_value("HD Ticket", self.ticket.name, "is_merged"))
+
+
+class TestMessageAuthors(IntegrationTestCase):
+    def setUp(self):
+        self.enterContext(stub_chat_channel())
+        self.customer = unique_email("chat-author")
+        contact = frappe.get_doc(
+            {
+                "doctype": "Contact",
+                "first_name": "Chat Author",
+                "image": "/files/chat-author.png",
+                "email_ids": [{"email_id": self.customer, "is_primary": 1}],
+            }
+        ).insert(ignore_permissions=True)
+        self.ticket = make_ticket(
+            channel=STUB_CHAT_CHANNEL, raised_by=self.customer, contact=contact.name
+        )
+
+    def test_customer_messages_show_the_contact(self):
+        agent = create_agent(unique_email("authors-agent")).name
+        with self.set_user(agent):
+            authors = get_message_authors(self.ticket.name)
+        self.assertEqual(
+            authors,
+            {
+                self.customer: {
+                    "fullname": "Chat Author",
+                    "image": "/files/chat-author.png",
+                }
+            },
+        )
+
+    def test_customers_cannot_ask(self):
+        customer = create_contact("Author Customer", unique_email("authors"))["user"]
+        with self.set_user(customer), self.assertRaises(frappe.PermissionError):
+            get_message_authors(self.ticket.name)
 
 
 class TestRemovedChannel(IntegrationTestCase):

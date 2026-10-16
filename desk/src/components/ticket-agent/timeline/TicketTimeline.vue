@@ -203,7 +203,11 @@ const { activities, loading, paginate, reload } = useActivityTimeline(
   SHARED_VISIBLE_TYPES
 );
 
-const { calls, commentExtras: extras } = useTicket(props.ticketId);
+const {
+  calls,
+  commentExtras: extras,
+  messageAuthors,
+} = useTicket(props.ticketId);
 const pinnedNames = computed(() => new Set(extras.data?.pinned_comments ?? []));
 // the feed already holds every comment, so the bar reads their text from it
 const pinnedComments = computed<PinnedComment[]>(() => {
@@ -337,6 +341,7 @@ function withTagNamesBold(activity: LogActivity): LogActivity {
 
 function withEmailFixups(activity: EmailActivity): EmailActivity {
   const data = { ...activity.data };
+  const author = withChannelAuthor(activity.author, data.sender);
   // portal and chat tickets have no real delivery pipeline; hide the badge
   if (ticket.value?.doc?.via_customer_portal || isChatTicket.value)
     delete data.deliveryStatus;
@@ -349,7 +354,22 @@ function withEmailFixups(activity: EmailActivity): EmailActivity {
   if (isPlainText(data.content)) {
     data.content = data.content.replace(/\n/g, "<br>");
   }
-  return { ...activity, data };
+  return { ...activity, author, data };
+}
+
+// Frappe knows authors only as users; the ticket's channel fills in the rest
+function withChannelAuthor(
+  author: EmailActivity["author"],
+  sender: string
+): EmailActivity["author"] {
+  const known = messageAuthors.data?.[sender];
+  if (!known) return author;
+  const unnamed = !author?.fullname || author.fullname === sender;
+  return {
+    ...author,
+    fullname: unnamed ? known.fullname || author?.fullname : author.fullname,
+    image: author?.image || known.image,
+  };
 }
 
 function isPlainText(content: string): boolean {
