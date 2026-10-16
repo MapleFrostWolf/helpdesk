@@ -414,7 +414,6 @@ export interface Breadcrumb {
   };
 }
 
-
 export interface FieldCriteriaState {
   selectedParentField: string;
   selectedChildField: string;
@@ -519,6 +518,16 @@ export interface TicketContact {
   phone: string;
   mobile_no: string;
   image: string;
+  /** who the contact is on the ticket's channel, when the channel says */
+  handle?: ChannelHandle | null;
+}
+
+// A contact's account on a ticket channel, from the channel's contact_handle.
+export interface ChannelHandle {
+  channel: string;
+  icon?: string;
+  label: string;
+  url?: string | null;
 }
 
 // A ticket assignee enriched with their agent status by get_ticket_assignees.

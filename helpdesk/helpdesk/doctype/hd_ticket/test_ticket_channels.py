@@ -3,8 +3,14 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase, change_settings
 
+from helpdesk.api.contact import get_contact_info
 from helpdesk.api.timeline import get_message_authors
-from helpdesk.helpdesk.doctype.hd_ticket.api import merge_ticket, new, split_ticket
+from helpdesk.helpdesk.doctype.hd_ticket.api import (
+    get_ticket_contact,
+    merge_ticket,
+    new,
+    split_ticket,
+)
 from helpdesk.helpdesk.doctype.hd_ticket.hd_ticket import HDTicket
 from helpdesk.test_utils import (
     STUB_CHAT_CHANNEL,
@@ -257,6 +263,50 @@ class TestMessageAuthors(FrappeTestCase):
         customer = create_contact("Author Customer", unique_email("authors"))["user"]
         with self.set_user(customer), self.assertRaises(frappe.PermissionError):
             get_message_authors(self.ticket.name)
+
+
+class TestContactHandles(FrappeTestCase):
+    """Who the customer is on a channel, for the contact card and the contact page."""
+
+    def setUp(self):
+        self.enterContext(stub_chat_channel())
+        self.enterContext(
+            patch.object(
+                StubChatChannel,
+                "contact_handle",
+                lambda channel, contact: {
+                    "label": f"@{contact.first_name.lower()}",
+                    "url": "https://chat.example.com/u",
+                },
+            )
+        )
+        self.customer = unique_email("chat-handle")
+        self.contact = frappe.get_doc(
+            {
+                "doctype": "Contact",
+                "first_name": "Handle",
+                "email_ids": [{"email_id": self.customer, "is_primary": 1}],
+            }
+        ).insert(ignore_permissions=True)
+        self.handle = {
+            "channel": STUB_CHAT_CHANNEL,
+            "icon": StubChatChannel.icon,
+            "label": "@handle",
+            "url": "https://chat.example.com/u",
+        }
+
+    def test_contact_card_shows_the_handle_on_the_tickets_channel(self):
+        chat = make_ticket(
+            channel=STUB_CHAT_CHANNEL,
+            raised_by=self.customer,
+            contact=self.contact.name,
+        )
+        email = make_ticket(raised_by=self.customer, contact=self.contact.name)
+        self.assertEqual(get_ticket_contact(chat.name)["handle"], self.handle)
+        self.assertIsNone(get_ticket_contact(email.name)["handle"])
+
+    def test_contact_page_shows_the_handles_on_every_channel(self):
+        self.assertIn(self.handle, get_contact_info(self.contact.name)["handles"])
 
 
 class TestRemovedChannel(FrappeTestCase):
