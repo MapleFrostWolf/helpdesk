@@ -72,6 +72,22 @@
           </EmailItem>
         </template>
 
+        <!-- a chat message's badge is its channel, not an envelope -->
+        <template v-if="isChatTicket" #icon-email="{ activity }">
+          <div class="relative flex">
+            <Avatar
+              size="lg"
+              :label="activity.author.fullname"
+              :image="activity.author.image"
+            />
+            <span
+              class="absolute -bottom-0.5 -end-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-surface-base text-ink-gray-5"
+            >
+              <Icon :icon="chatIcon" class="size-3" />
+            </span>
+          </div>
+        </template>
+
         <template #item-call="{ activity }">
           <CallArea :activity="activity.data" />
         </template>
@@ -125,6 +141,7 @@ export const SHARED_VISIBLE_TYPES: VisibleTypes = [
 
 <script setup lang="ts">
 import CallArea from "@/components/CallArea.vue";
+import Icon from "@/components/Icon.vue";
 import {
   ActivityIcon,
   CommentIcon,
@@ -158,7 +175,7 @@ import {
   type EmailActivity,
   type LogActivity,
 } from "@framework/ui/ActivityTimeline";
-import { Button, Dropdown, call } from "frappe-ui";
+import { Avatar, Button, Dropdown, call } from "frappe-ui";
 import {
   computed,
   inject,
@@ -188,8 +205,11 @@ const authStore = useAuthStore();
 const { getUser } = useUserStore();
 const { $socket } = globalStore();
 const ticket = inject(TicketSymbol)!;
-const { isChat } = useTicketChannelStore();
+const { getChannel, isChat } = useTicketChannelStore();
 const isChatTicket = computed(() => isChat(ticket.value?.doc?.channel));
+const chatIcon = computed(
+  () => getChannel(ticket.value?.doc?.channel)?.icon || "message-circle"
+);
 
 const splitCommunication = ref("");
 const timelineRef =
@@ -232,7 +252,11 @@ const feed = computed<Array<Activity | CustomActivity>>(() => {
     timestamp: call.creation,
     data: { ...call, call_type: call.type },
   }));
-  return [...activities.value, ...callRows].sort((a, b) =>
+  // the row's avatar is drawn from its author, so the channel's go in here
+  const rows = activities.value.map((a) =>
+    a.type === "email" ? withChannelAuthor(a) : a
+  );
+  return [...rows, ...callRows].sort((a, b) =>
     (a.timestamp ?? "").localeCompare(b.timestamp ?? "")
   );
 });
@@ -341,12 +365,12 @@ function withTagNamesBold(activity: LogActivity): LogActivity {
 
 function withEmailFixups(activity: EmailActivity): EmailActivity {
   const data = { ...activity.data };
-  const author = withChannelAuthor(activity.author, data.sender);
   // portal and chat tickets have no real delivery pipeline; hide the badge
   if (ticket.value?.doc?.via_customer_portal || isChatTicket.value)
     delete data.deliveryStatus;
-  // chat messages have no envelope
+  // chat messages have no envelope; their sender may be a placeholder address
   if (isChatTicket.value) {
+    delete data.sender;
     delete data.to;
     delete data.cc;
     delete data.bcc;
@@ -354,21 +378,23 @@ function withEmailFixups(activity: EmailActivity): EmailActivity {
   if (isPlainText(data.content)) {
     data.content = data.content.replace(/\n/g, "<br>");
   }
-  return { ...activity, author, data };
+  return { ...activity, data };
 }
 
 // Frappe knows authors only as users; the ticket's channel fills in the rest
-function withChannelAuthor(
-  author: EmailActivity["author"],
-  sender: string
-): EmailActivity["author"] {
+function withChannelAuthor(activity: EmailActivity): EmailActivity {
+  const author = activity.author;
+  const sender = activity.data.sender;
   const known = messageAuthors.data?.[sender];
-  if (!known) return author;
+  if (!known) return activity;
   const unnamed = !author?.fullname || author.fullname === sender;
   return {
-    ...author,
-    fullname: unnamed ? known.fullname || author?.fullname : author.fullname,
-    image: author?.image || known.image,
+    ...activity,
+    author: {
+      ...author,
+      fullname: unnamed ? known.fullname || author?.fullname : author.fullname,
+      image: author?.image || known.image,
+    },
   };
 }
 
