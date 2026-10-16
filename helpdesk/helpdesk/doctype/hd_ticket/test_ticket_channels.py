@@ -4,7 +4,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.tests.utils import change_settings
 
-from helpdesk.helpdesk.doctype.hd_ticket.api import new
+from helpdesk.helpdesk.doctype.hd_ticket.api import merge_ticket, new, split_ticket
 from helpdesk.helpdesk.doctype.hd_ticket.hd_ticket import HDTicket
 from helpdesk.test_utils import (
     STUB_CHAT_CHANNEL,
@@ -157,6 +157,70 @@ class TestChatReply(IntegrationTestCase):
         with patch.object(StubChatChannel, "send_reply", side_effect=error):
             with self.assertRaises(RuntimeError):
                 self.ticket.reply_via_agent(message="Lost")
+
+
+class TestChannelLifecycle(IntegrationTestCase):
+    """Splitting and merging ask the ticket's channel."""
+
+    def setUp(self):
+        self.enterContext(stub_chat_channel())
+        self.ticket = make_chat_ticket()
+        self.message = self.add_message(self.ticket, "Second question")
+
+    def add_message(self, ticket, content: str) -> str:
+        return (
+            frappe.get_doc(
+                {
+                    "doctype": "Communication",
+                    "communication_type": "Communication",
+                    "communication_medium": "Chat",
+                    "sent_or_received": "Received",
+                    "sender": ticket.raised_by,
+                    "subject": ticket.subject,
+                    "content": content,
+                    "reference_doctype": "HD Ticket",
+                    "reference_name": ticket.name,
+                }
+            )
+            .insert(ignore_permissions=True)
+            .name
+        )
+
+    def test_channel_can_refuse_a_split(self):
+        refusal = frappe.ValidationError("one conversation, one ticket")
+        with patch.object(StubChatChannel, "before_split", side_effect=refusal):
+            with self.assertRaises(frappe.ValidationError):
+                split_ticket(subject="Split off", communication_id=self.message)
+        self.assertEqual(
+            frappe.db.get_value("Communication", self.message, "reference_name"),
+            self.ticket.name,
+        )
+        self.assertFalse(
+            frappe.db.exists("HD Ticket", {"ticket_split_from": self.ticket.name})
+        )
+
+    def test_split_notice_goes_through_the_channel(self):
+        with patch.object(StubChatChannel, "send_reply", autospec=True) as send_reply:
+            new_ticket = split_ticket(
+                subject="Split off", communication_id=self.message
+            )
+        self.assertEqual(
+            frappe.db.get_value("HD Ticket", new_ticket, "channel"), STUB_CHAT_CHANNEL
+        )
+        _channel, ticket, communication = send_reply.call_args.args
+        self.assertEqual(ticket.name, self.ticket.name)
+        self.assertIn(f"#{new_ticket}", communication.content)
+
+    def test_merge_notice_is_the_channels(self):
+        target = make_ticket(raised_by=self.ticket.raised_by)
+        with patch.object(StubChatChannel, "notify_merge", autospec=True) as notify:
+            merge_ticket(source=self.ticket.name, target=target.name)
+        _channel, source, merged_into = notify.call_args.args
+        self.assertEqual(
+            (source.name, merged_into.name), (self.ticket.name, target.name)
+        )
+        self.assertEqual(source.status, "Closed")
+        self.assertTrue(frappe.db.get_value("HD Ticket", self.ticket.name, "is_merged"))
 
 
 class TestRemovedChannel(IntegrationTestCase):

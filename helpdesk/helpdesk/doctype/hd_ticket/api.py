@@ -10,6 +10,7 @@ from frappe.utils.caching import redis_cache
 from pypika import Order
 
 from helpdesk.api.doc import handle_at_me_support
+from helpdesk.channels import get_channel
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
 from helpdesk.helpdesk.doctype.hd_settings.helpers import get_rendered_banner_msg
 from helpdesk.ticket_fields import TicketFields
@@ -208,13 +209,7 @@ def merge_ticket(source: str, target: str):
     doc.flags.ignore_permlevel_for_fields = ["is_merged", "merged_with"]
     doc.save()
 
-    message = _(
-        "This ticket (#{0}) has been merged with ticket <a href = '/helpdesk/tickets/{1}'>#{1}</a>."
-    ).format(source, target)
-    controller.reply_via_agent(
-        doc,
-        message=message,
-    )
+    get_channel(doc.channel).notify_merge(doc, frappe.get_doc("HD Ticket", target))
 
     # comment in target ticket that
     c = frappe.new_doc("Comment")
@@ -337,17 +332,9 @@ def split_ticket(subject: str, communication_id: str):
         update_modified=False,
     )
 
-    new_ticket_link = frappe.utils.get_url("/helpdesk/tickets/" + str(new_ticket))
-
-    controller = get_controller("HD Ticket")
-    controller.reply_via_agent(
-        ticket_doc,
-        message=_(
-            "This ticket has been split to a new ticket. Please follow up on ticket <a href={0}>#{1}</a>."
-        ).format(new_ticket_link, new_ticket),
+    get_channel(ticket_doc.channel).notify_split(
+        ticket_doc, frappe.get_doc("HD Ticket", new_ticket)
     )
-
-    # Email on the old ticket that it has been split to new_ticket
     return new_ticket
 
 
@@ -382,6 +369,7 @@ def duplicate_ticket(ticket_doc, subject):
         new_ticket.resolution_time = None
         new_ticket.user_resolution_time = None
 
+    get_channel(ticket_doc.channel).before_split(ticket_doc, new_ticket)
     new_ticket.insert(ignore_permissions=True)
 
     return new_ticket.name
