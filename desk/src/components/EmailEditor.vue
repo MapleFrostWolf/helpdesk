@@ -311,6 +311,11 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  // false while the ticket's channel loads: no signature until it's known
+  channelKnown: {
+    type: Boolean,
+    default: true,
+  },
   toEmails: {
     type: Array,
     default: () => [],
@@ -773,14 +778,15 @@ watch(quotedContent, (newVal, oldVal) => {
 });
 
 watch(
-  [() => userResource.data, () => props.chatChannel],
-  ([data, chatChannel]: [
+  [() => userResource.data, () => props.chatChannel, () => props.channelKnown],
+  ([data, chatChannel, channelKnown]: [
     { email_signature?: string } | null,
-    string | null
+    string | null,
+    boolean
   ]) => {
     // chat replies are messages, not emails: no signature
     const signature =
-      data?.email_signature && !chatChannel
+      data?.email_signature && channelKnown && !chatChannel
         ? `<br>${data.email_signature}`
         : null;
     if (signature === emailSignature.value) return;

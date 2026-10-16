@@ -139,6 +139,18 @@ class TestChatReply(FrappeTestCase):
             "attachments must be on the reply before the channel gets it",
         )
 
+    def test_chat_reply_gets_no_email_signature(self):
+        frappe.db.set_value(
+            "User", "Administrator", "email_signature", "<p>Regards</p>"
+        )
+        with patch.object(StubChatChannel, "send_reply"):
+            name = self.ticket.reply_via_agent(
+                message='<div class="ql-editor read-mode"><p>On it</p></div>'
+            )
+        self.assertNotIn(
+            "Regards", frappe.db.get_value("Communication", name, "content")
+        )
+
     def test_reply_fails_when_the_channel_fails(self):
         error = RuntimeError("chat app is down")
         with patch.object(StubChatChannel, "send_reply", side_effect=error):
