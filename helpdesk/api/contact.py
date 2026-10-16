@@ -5,6 +5,7 @@ from frappe.core.api.user_invitation import invite_by_email
 from frappe.desk.reportview import delete_bulk
 from frappe.utils import validate_phone_number_with_country_code
 
+from helpdesk.channels import contact_handles
 from helpdesk.utils import get_country_from_timezone, get_customers
 
 
@@ -167,6 +168,7 @@ def get_contact_info(name: str) -> dict:
 
     result = {
         "customers": get_customers_with_image(name),
+        "handles": contact_handles(contact),
         "last_seen": None,
     }
     if not contact.user and (invite := get_invitation(name, primary_email)):

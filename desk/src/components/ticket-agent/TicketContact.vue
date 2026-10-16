@@ -16,7 +16,7 @@
           </p>
         </div>
       </Tooltip>
-      <div class="flex items-center gap-1 text-p-sm text-ink-gray-6">
+      <div class="flex min-w-0 items-center gap-1 text-p-sm text-ink-gray-6">
         <p
           class="cursor-copy transition-colors hover:text-ink-gray-8"
           @click="
@@ -28,10 +28,18 @@
         >
           #{{ ticket.doc.name }}
         </p>
-        <div v-if="ticket.doc.channel" class="flex items-center gap-1">
+        <div v-if="ticket.doc.channel" class="flex shrink-0 items-center gap-1">
           <Icon v-if="channel?.icon" :icon="channel.icon" class="size-3" />
           <span>{{ __("via {0}", [__(ticket.doc.channel)]) }}</span>
         </div>
+        <template v-if="contact.data?.handle">
+          <span class="text-ink-gray-4">·</span>
+          <ChannelHandle
+            :handle="contact.data.handle"
+            :show-icon="false"
+            class="hover:text-ink-gray-8"
+          />
+        </template>
       </div>
     </div>
     <Tooltip v-if="isCallingEnabled" :text="__('Call contact')">
@@ -50,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import ChannelHandle from "@/components/ChannelHandle.vue";
 import Icon from "@/components/Icon.vue";
 import { useShortcut } from "@/composables/shortcuts";
 import { useTelephonyStore } from "@/stores/telephony";

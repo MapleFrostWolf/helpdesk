@@ -10,7 +10,7 @@ from frappe.utils.caching import redis_cache
 from pypika import Order
 
 from helpdesk.api.doc import handle_at_me_support
-from helpdesk.channels import get_channel
+from helpdesk.channels import channel_handle, get_channel
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
 from helpdesk.helpdesk.doctype.hd_settings.helpers import get_rendered_banner_msg
 from helpdesk.ticket_fields import TicketFields
@@ -477,8 +477,8 @@ def get_ticket_contact(ticket: str):
     frappe.has_permission("HD Ticket", "read", ticket, throw=True)
     if not frappe.db.exists("HD Ticket", ticket):
         return None
-    contact, raised_by = frappe.db.get_value(
-        "HD Ticket", ticket, ["contact", "raised_by"]
+    contact, raised_by, channel = frappe.db.get_value(
+        "HD Ticket", ticket, ["contact", "raised_by", "channel"]
     )
     if contact:
         data = frappe.db.get_value(
@@ -487,6 +487,8 @@ def get_ticket_contact(ticket: str):
             ["name", "email_id", "phone", "mobile_no", "image"],
             as_dict=1,
         )
+        if data:
+            data["handle"] = channel_handle(channel, frappe.get_doc("Contact", contact))
     else:
         data = contact_from_email(raised_by)
     return data

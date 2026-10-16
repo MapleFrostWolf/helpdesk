@@ -113,6 +113,7 @@
 </template>
 
 <script setup lang="ts">
+import ChannelHandle from "@/components/ChannelHandle.vue";
 import ContactCustomers from "@/components/contact/ContactCustomers.vue";
 import ContactFeedback from "@/components/contact/ContactFeedback.vue";
 import TicketsTab from "@/components/customer/TicketsTab.vue";
@@ -132,6 +133,7 @@ import {
 } from "@/composables/contact";
 import { useScreenSize } from "@/composables/screen";
 import { __ } from "@/translation";
+import type { ChannelHandle as ChannelHandleInfo } from "@/types";
 import { hasPermission } from "@/utils";
 import {
   Breadcrumbs,
@@ -212,6 +214,14 @@ const contactInfo = computed(() => {
       value: contact.doc?.mobile_no,
       condition: !!contact.doc?.mobile_no,
     },
+    // the contact's accounts on ticket channels, such as a chat app
+    ...(contactInfoResource.data?.handles ?? []).map(
+      (handle: ChannelHandleInfo) => ({
+        component: markRaw(
+          h(ChannelHandle, { handle, class: "text-sm text-ink-gray-8" })
+        ),
+      })
+    ),
     {
       icon: markRaw(LucideMapPin),
       value: contactInfoResource.data?.country,

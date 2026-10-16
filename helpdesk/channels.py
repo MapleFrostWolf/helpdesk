@@ -22,8 +22,8 @@ class TicketChannel:
     reply through `send_reply`, and Helpdesk sends their customers no email.
 
     The other methods are called at points in a ticket's life where a channel may
-    need a say: splitting, merging, and showing who wrote its messages. Their
-    defaults are Helpdesk's own behavior.
+    need a say: splitting, merging, and showing who wrote its messages and who
+    the customer is on the channel. Their defaults are Helpdesk's own behavior.
     """
 
     icon: str = "message-circle"
@@ -82,6 +82,16 @@ class TicketChannel:
             ticket.raised_by: {"fullname": contact.full_name, "image": contact.image}
         }
 
+    def contact_handle(self, contact) -> dict | None:
+        """Who `contact` is on this channel, for the agent UI: an account name, say.
+
+        `{"label": ..., "url": ...}`, where `url` (http or https) is optional and
+        opens the account. Shown on the contact's page, and on the ticket's contact
+        card when this is the ticket's channel. By default nothing, since Helpdesk
+        shows the contact's email address and phone numbers itself.
+        """
+        return None
+
 
 class EmailChannel(TicketChannel):
     icon = "mail"
@@ -115,6 +125,22 @@ def get_channel(name: str) -> TicketChannel:
             title=_("Channel not available"),
         )
     return channel
+
+
+def channel_handle(name: str | None, contact) -> dict | None:
+    """The handle of `contact` on the registered channel `name`, with the channel's
+    name and icon, or None."""
+    channel = find_channel(name)
+    handle = channel and channel.contact_handle(contact)
+    if not handle:
+        return None
+    return {"channel": name, "icon": channel.icon, **handle}
+
+
+def contact_handles(contact) -> list[dict]:
+    """The handles of `contact` on every registered channel that has one."""
+    handles = (channel_handle(name, contact) for name in registered_channels())
+    return [handle for handle in handles if handle]
 
 
 def sync_channels(app: str | None = None) -> None:

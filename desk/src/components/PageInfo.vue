@@ -88,6 +88,10 @@ const props = withDefaults(
 const { isMobileView } = useScreenSize();
 
 const hasDocInfo = computed(() => {
-  return props.docInfo?.some((item) => item.value) ?? false;
+  return (
+    props.docInfo?.some(
+      (item) => item.condition !== false && (item.value || item.component)
+    ) ?? false
+  );
 });
 </script>
