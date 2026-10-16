@@ -56,6 +56,20 @@ class TelegramChannel(TicketChannel):
   reply and its attachments are saved, in the same request and transaction. An
   exception rolls the reply back and shows the agent the error. Network calls
   belong in a background job queued after commit.
+- A channel can also take part in a ticket's life. Each of these has a default
+  that does what Helpdesk did before channels:
+
+  | Method | Called | Default |
+  |---|---|---|
+  | `before_split(source, ticket)` | before a ticket split from `source` is inserted; `ticket` is its copy | keeps the copy; raise to refuse the split |
+  | `notify_split(source, ticket)` | after the split | a reply on `source` pointing to `ticket` |
+  | `notify_merge(source, target)` | after `source` is merged into `target` and closed | a reply on `source` pointing to `target` |
+  | `message_authors(ticket)` | when the agent UI shows the ticket's timeline | the ticket's contact, as the author of messages from `raised_by` |
+
+  `message_authors` returns `{sender: {"fullname", "image"}}` for senders that
+  aren't Frappe users; the timeline uses them where Frappe has no name or
+  picture. A chat channel whose customers' replies arrive from a placeholder
+  address gets their contact's name and picture this way.
 - The app creates the ticket with `channel` set to the hook's key, and logs the
   customer's messages as Received communications, as integrations do today.
 - When two apps register the same name, the app installed last wins, as with
@@ -104,14 +118,16 @@ existing tickets from `via_customer_portal`.
 | Ticket header | "via Email", "via Portal" | "via {channel}" with its icon |
 | Composer | From, To, Cc, Bcc, signature | "Reply via {channel}", no recipients or signature |
 | Timeline | unchanged | no recipients, delivery status or Reply All |
+| Split, merge | the channel's `before_split`, `notify_split`, `notify_merge`; by default as before | the same |
+| Message authors in the timeline | Frappe users, then `message_authors` | the same |
 | Dashboard, Tickets by Channel | grouped by `channel` | grouped by `channel` |
 
 A ticket whose channel is unregistered can't be replied to, since nothing could
 deliver the reply.
 
-Merging and splitting a ticket reply to the customer through
-`reply_via_agent`, so on a chat ticket those notes go through `send_reply` too.
-A split ticket keeps the channel of the ticket it came from.
+A split ticket keeps the channel of the ticket it came from, unless the
+channel's `before_split` changes it. A chat reply never carries an email
+signature: the composer adds none, and the saved reply skips Frappe's.
 
 Helpdesk's status handling (`on_communication_update`) is the same for every
 channel.
@@ -119,7 +135,7 @@ channel.
 ## Code
 
 - `helpdesk/channels.py`: `TicketChannel`, `EmailChannel`, `PortalChannel`,
-  `registered_channels()`, `get_channel()`, `sync_channels()`, and
+  `registered_channels()`, `find_channel()`, `get_channel()`, `sync_channels()`, and
   `sync_channels_after_uninstall()`, which commits: Frappe runs
   `after_app_uninstall` hooks after its last commit.
 - `HD Ticket Channel` DocType.
@@ -128,9 +144,15 @@ channel.
   `reply_via_agent()`; `skip_email_workflow()`, the acknowledgement and
   feedback emails check the reply mode.
 - `helpdesk/api/dashboard.py`: the channel chart groups by `channel`.
+- `helpdesk/helpdesk/doctype/hd_ticket/api.py`: `split_ticket` and
+  `merge_ticket` call the channel's split and merge methods.
+- `helpdesk/api/timeline.py`: `get_message_authors()`, for the agent UI.
 - Frontend: `stores/ticketChannel.ts` (`useTicketChannelStore`, read through the
   list API); `TicketContact`, `CommunicationArea` and `EmailEditor`,
-  `TicketTimeline` and the mobile ticket page read the ticket's channel.
+  `TicketTimeline` and the mobile ticket page read the ticket's channel. The
+  composer adds no signature until the ticket's channel is known.
+  `useTicket` loads `messageAuthors`, which `TicketTimeline` applies to email
+  rows, and reloads it with the contact when the ticket changes.
 
 ## Tests
 
@@ -140,7 +162,8 @@ channel.
 - `helpdesk/helpdesk/doctype/hd_ticket/test_ticket_channels.py`: the default
   channel, customers can't choose it, set once, unregistered channels refused,
   no acknowledgement or feedback email, chat replies (communication,
-  attachments, `send_reply`, no email, errors reach the agent).
+  attachments, `send_reply`, no email or signature, errors reach the agent),
+  split and merge through the channel, message authors.
 - `helpdesk/tests/api/test_dashboard.py`: the channel chart.
 - `StubChatChannel` and `channel_hooks()` in `helpdesk/test_utils.py` register
   channels the way an app's hook would.
